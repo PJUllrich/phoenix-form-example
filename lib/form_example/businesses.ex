@@ -4,6 +4,7 @@ defmodule FormExample.Businesses do
   """
 
   import Ecto.Query, warn: false
+  alias Ecto.Changeset
   alias FormExample.Repo
 
   alias FormExample.Orders.Order
@@ -85,19 +86,45 @@ defmodule FormExample.Businesses do
     |> Repo.transaction()
   end
 
-  def update_business(%{business: business, profile: profile, orders: orders} = _data) do
+  def update_business(data) do
     Ecto.Multi.new()
-    |> Ecto.Multi.update(:business, business)
-    |> Ecto.Multi.update(:profile, profile)
-    |> update_orders(orders)
+    |> maybe_update_business(data)
+    |> maybe_update_profile(data)
+    |> maybe_update_orders(data)
     |> Repo.transaction()
   end
 
-  defp update_orders(multi, orders) do
-    Enum.reduce(orders, multi, fn order, multi ->
-      Ecto.Multi.update(multi, "order-#{order.data.id}", order)
+  defp maybe_update_business(multi, %{business: business}) do
+    Ecto.Multi.update(multi, :business, business)
+  end
+
+  defp maybe_update_business(multi, _params), do: multi
+
+  defp maybe_update_profile(multi, %{profile: profile}) do
+    Ecto.Multi.update(multi, :profile, profile)
+  end
+
+  defp maybe_update_profile(multi, _params), do: multi
+
+  defp maybe_update_orders(multi, %{orders: orders}) do
+    orders
+    |> Enum.with_index()
+    |> Enum.reduce(multi, fn {order, idx}, multi ->
+      case order.action do
+        :replace ->
+          order = Changeset.apply_action!(order, :delete)
+          Ecto.Multi.delete(multi, "order-#{idx}", order)
+
+        :update ->
+          Ecto.Multi.update(multi, "order-#{idx}", order)
+
+        :insert ->
+          Ecto.Multi.insert(multi, "order-#{idx}", order)
+      end
     end)
   end
+
+  defp maybe_update_orders(multi, _params), do: multi
 
   @doc """
   Updates a business.

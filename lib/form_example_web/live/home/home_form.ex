@@ -9,16 +9,20 @@ defmodule FormExampleWeb.HomeLive.HomeForm do
   alias FormExample.Profiles.Profile
 
   embedded_schema do
-    embeds_one :profile, Profile, on_replace: :update
     embeds_one :business, Business, on_replace: :update
+    embeds_one :profile, Profile, on_replace: :update
     embeds_many :orders, Order, on_replace: :delete
+
+    # Helper fields for adding/deleting orders
+    field :order_sort, {:array, :integer}
+    field :order_drop, {:array, :integer}
   end
 
   def new() do
     form = %HomeForm{
-      profile: %Profile{business_id: 1},
       business: %Business{id: 1},
-      orders: [%Order{id: 0, business_id: 1}]
+      profile: %Profile{business_id: 1},
+      orders: []
     }
 
     changeset(form, %{})
@@ -29,7 +33,11 @@ defmodule FormExampleWeb.HomeLive.HomeForm do
     |> cast(attrs, [])
     |> cast_embed(:profile, with: &Profile.changeset/2)
     |> cast_embed(:business, with: &Business.changeset/2)
-    |> cast_embed(:orders, with: &Order.changeset/2)
+    |> cast_embed(:orders,
+      with: &Order.changeset/2,
+      sort_param: :order_sort,
+      drop_param: :order_drop
+    )
   end
 
   def validate(struct_or_changeset, attrs) do

@@ -106,5 +106,18 @@ defmodule FormExampleWeb.HomeLiveTest do
       assert res_order.amount == 456
       assert res_order.status == :draft
     end
+
+    test "deletes existing orders", %{conn: conn} do
+      assert false
+    end
+
+    test "updates existing orders", %{conn: conn} do
+      assert false
+    end
+
+    test "creates new orders", %{conn: conn} do
+      # create at least two orders
+      assert false
+    end
   end
 end

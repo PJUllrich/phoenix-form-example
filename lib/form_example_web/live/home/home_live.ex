@@ -41,26 +41,46 @@ defmodule FormExampleWeb.HomeLive do
         <div class="space-y-8">
           <.inputs_for :let={order} field={@form[:orders]}>
             <div class="w-full grid grid-cols-2 gap-x-2">
-              <.input field={order[:amount]} type="number" label="Order Amount" />
-              <.input
-                field={order[:status]}
-                type="select"
-                label="Order Status"
-                options={Order.valid_statuses()}
-              />
-              <.inputs_for :let={business} field={@form[:business]}>
+              <div>
+                <.input field={@form[:order_sort]} multiple={true} value={order.index} type="hidden" />
+                <.input field={order[:amount]} type="number" label="Order Amount" />
+              </div>
+              <div class="flex justify-start items-end">
                 <.input
-                  field={order[:business_id]}
-                  type="hidden"
-                  value={Form.input_value(business, :id)}
+                  field={order[:status]}
+                  type="select"
+                  label="Order Status"
+                  options={Order.valid_statuses()}
                 />
-              </.inputs_for>
+                <.inputs_for :let={business} field={@form[:business]}>
+                  <.input
+                    field={order[:business_id]}
+                    type="hidden"
+                    value={Form.input_value(business, :id)}
+                  />
+                </.inputs_for>
+
+                <button
+                  name={@form[:order_drop].name <> "[]"}
+                  value={order.index}
+                  phx-click={JS.dispatch("change")}
+                  type="button"
+                  class="ml-2 h-10 flex items-start"
+                >
+                  <.icon name="hero-x-circle-solid" class="w-6 h-6 relative top-2 text-red-500" />
+                </button>
+              </div>
             </div>
           </.inputs_for>
         </div>
+
+        <%!-- <.input field={@form[:order_drop]} multiple={true} value={nil} type="hidden" /> --%>
+
         <div class="w-full flex justify-between">
           <.button
-            phx-click="add_order"
+            name={@form[:order_sort].name <> "[]"}
+            value="new"
+            phx-click={JS.dispatch("change")}
             type="button"
             class="bg-gray-300 hover:bg-gray-400 text-black"
           >
@@ -111,6 +131,8 @@ defmodule FormExampleWeb.HomeLive do
   end
 
   def handle_event("validate", %{"form" => params}, socket) do
+    IO.inspect(params)
+
     form =
       socket.assigns.form.source.data
       |> HomeForm.changeset(params)
@@ -124,22 +146,26 @@ defmodule FormExampleWeb.HomeLive do
     form = socket.assigns.form
 
     with {:ok, data} <- HomeForm.validate(form.source.data, params),
-         {:ok, records} <- handle_submit(data, form, params, socket.assigns.live_action) do
-      socket = socket |> put_flash(:info, "Success!") |> push_patch(to: ~p"/#{records.business}")
-      {:noreply, socket}
+         {:ok, socket} <- handle_submit(socket, data, params, socket.assigns.live_action) do
+      {:noreply, put_flash(socket, :info, "Success!")}
     else
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, form: to_form(changeset, as: :form))}
     end
   end
 
-  defp handle_submit(data, _form, _params, :new) do
-    data |> HomeForm.to_new_data() |> Businesses.register_business()
+  defp handle_submit(socket, data, _params, :new) do
+    with data <- HomeForm.to_new_data(data),
+         {:ok, records} <- Businesses.register_business(data) do
+      {:ok, push_patch(socket, to: ~p"/#{records.business}")}
+    end
   end
 
-  defp handle_submit(_data, form, params, :edit) do
-    changeset = HomeForm.changeset(form.source.data, params)
-    Businesses.update_business(changeset.changes)
+  defp handle_submit(socket, _data, params, :edit) do
+    with changeset <- HomeForm.changeset(socket.assigns.form.source.data, params),
+         {:ok, _results} <- Businesses.update_business(changeset.changes) do
+      {:ok, socket}
+    end
   end
 
   defp assign_businesses(socket) do
