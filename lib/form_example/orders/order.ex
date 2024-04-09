@@ -4,22 +4,24 @@ defmodule FormExample.Orders.Order do
 
   alias FormExample.Businesses.Business
 
-  @valid_statutes [:draft, :paid, :refunded]
+  @statuses [:draft, :paid, :refunded]
 
   schema "orders" do
     field :amount, :integer
-    field :status, Ecto.Enum, values: @valid_statutes
+    field :status, Ecto.Enum, values: @statuses
 
     belongs_to :business, Business
 
     timestamps(type: :utc_datetime)
   end
 
+  def valid_statuses(), do: @statuses
+
   @doc false
   def changeset(order, attrs) do
     order
-    |> cast(attrs, [:amount, :status])
-    |> validate_required([:amount, :status])
+    |> cast(attrs, [:business_id, :amount, :status])
+    |> validate_required([:business_id, :amount, :status])
     |> validate_number(:amount, greater_than: 0)
   end
 end

@@ -16,5 +16,6 @@ defmodule FormExample.Profiles.Profile do
     profile
     |> cast(attrs, [:business_id, :name])
     |> validate_required([:business_id, :name])
+    |> validate_length(:name, min: 3, max: 10)
   end
 end

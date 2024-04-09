@@ -1,59 +1,85 @@
 defmodule FormExampleWeb.HomeLive do
   use FormExampleWeb, :live_view
+
+  alias FormExample.Orders.Order
+  alias FormExample.Businesses
+
   alias FormExampleWeb.HomeLive.HomeForm
+
+  alias Phoenix.HTML.Form
 
   def render(assigns) do
     ~H"""
-    <.form for={@form} phx-change="validate" phx-submit="submit">
-      <.input field={@form[:profile_name]} type="text" label="Profile Name" />
-      <.input field={@form[:business_name]} type="text" label="Business Name" />
-      <fieldset class="my-4">
-        <label class="block">Orders</label>
-        <.inputs_for :let={f_order} field={@form[:orders]}>
-          <div class="flex w-full gap-4">
-            <input type="hidden" name="form[orders_sort][]" value={f_order.index} />
-            <div class="flex-1">
-              <.input
-                field={f_order[:status]}
-                label="Status"
-                type="select"
-                options={Ecto.Enum.mappings(HomeForm.Order, :status)}
-                prompt="Select status"
-              />
-            </div>
-            <div class="flex-1">
-              <.input field={f_order[:amount]} label="Amount" type="number" />
-            </div>
-            <.button
-              type="button"
-              class="self-end"
-              name="form[orders_drop][]"
-              value={f_order.index}
-              phx-click={JS.dispatch("change")}
-            >
-              <.icon name="hero-x-mark" class="w-6 h-6 relative" />
-            </.button>
-          </div>
+    <div>
+      <div class="w-full flex justify-between">
+        <h1 :if={!@business} class="text-2xl font-semibold">Create a new business</h1>
+        <h1 :if={@business} class="text-2xl font-semibold">Edit business <%= @business.id %></h1>
+        <.link :if={@business} patch={~p"/"} class="font-semibold">
+          <.icon name="hero-plus-circle" /> Create new business
+        </.link>
+      </div>
+
+      <.form for={@form} phx-change="validate" phx-submit="submit" class="space-y-6">
+        <%!-- Profile Inputs --%>
+        <.inputs_for :let={profile} field={@form[:profile]}>
+          <.input field={profile[:name]} type="text" label="Profile Name" />
+          <.inputs_for :let={business} field={@form[:business]}>
+            <.input
+              field={profile[:business_id]}
+              type="hidden"
+              value={Form.input_value(business, :id)}
+            />
+          </.inputs_for>
         </.inputs_for>
 
-        <input type="hidden" name="form[orders_drop][]" />
+        <%!-- Business Inputs --%>
+        <.inputs_for :let={business} field={@form[:business]}>
+          <.input field={business[:name]} type="text" label="Business Name" />
+        </.inputs_for>
 
-        <.button
-          type="button"
-          name="form[orders_sort][]"
-          value="new"
-          phx-click={JS.dispatch("change")}
-        >
-          add more
-        </.button>
-      </fieldset>
-      <.button type="submit">Submit</.button>
-    </.form>
+        <%!-- Order Inputs --%>
+        <div class="space-y-8">
+          <.inputs_for :let={order} field={@form[:orders]}>
+            <div class="w-full grid grid-cols-2 gap-x-2">
+              <.input field={order[:amount]} type="number" label="Order Amount" />
+              <.input
+                field={order[:status]}
+                type="select"
+                label="Order Status"
+                options={Order.valid_statuses()}
+              />
+              <.inputs_for :let={business} field={@form[:business]}>
+                <.input
+                  field={order[:business_id]}
+                  type="hidden"
+                  value={Form.input_value(business, :id)}
+                />
+              </.inputs_for>
+            </div>
+          </.inputs_for>
+        </div>
+        <div class="w-full flex justify-between">
+          <.button
+            phx-click="add_order"
+            type="button"
+            class="bg-gray-300 hover:bg-gray-400 text-black"
+          >
+            Add order
+          </.button>
+          <.button type="submit">Submit</.button>
+        </div>
+      </.form>
+      <div class="mt-20 space-y-4">
+        <h2 class="font-semibold text-xl">Existing Businesses</h2>
+        <div :for={business <- @businesses} class="hover:underline">
+          <.link patch={~p"/#{business}"}>
+            <%= business.id %> <%= business.name %>
+            <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" />
+          </.link>
+        </div>
+      </div>
+    </div>
     """
-  end
-
-  def mount(_params, _session, socket) do
-    {:ok, socket}
   end
 
   def handle_params(params, _uri, socket) do
@@ -61,33 +87,27 @@ defmodule FormExampleWeb.HomeLive do
   end
 
   defp apply_action(socket, _params, :new) do
-    base = %HomeForm{profile_name: "", business_name: "", orders: []}
-    form = base |> HomeForm.changeset(%{}) |> to_form(as: :form)
-    assign(socket, form: form)
+    form = HomeForm.new() |> to_form(as: :form)
+    assign(socket, form: form, business: nil) |> assign_businesses()
   end
 
   defp apply_action(socket, %{"business_id" => id}, :edit) do
-    business =
-      FormExample.Businesses.Business
-      |> FormExample.Repo.get(id)
-      |> FormExample.Repo.preload([:profile, :orders])
+    business = Businesses.get_business!(id)
 
     base = %HomeForm{
-      id: business.id,
-      profile_name: business.profile.name,
-      business_name: business.name,
-      orders:
-        Enum.map(business.orders, fn order ->
-          %HomeForm.Order{
-            id: order.id,
-            amount: order.amount,
-            status: order.status
-          }
-        end)
+      business: business,
+      profile: business.profile,
+      orders: business.orders
     }
 
     form = base |> HomeForm.changeset(%{}) |> to_form(as: :form)
-    assign(socket, form: form, business: business)
+    assign(socket, form: form, business: business) |> assign_businesses()
+  end
+
+  # TODO: Implement adding an order
+  def handle_event("add_order", _params, socket) do
+    IO.inspect(socket.assigns.form)
+    {:noreply, socket}
   end
 
   def handle_event("validate", %{"form" => params}, socket) do
@@ -101,50 +121,28 @@ defmodule FormExampleWeb.HomeLive do
   end
 
   def handle_event("submit", %{"form" => params}, socket) do
-    changeset =
-      socket.assigns.form.source.data
-      |> HomeForm.changeset(params)
+    form = socket.assigns.form
 
-    case Ecto.Changeset.apply_action(changeset, :create) do
-      {:ok, data} ->
-        business =
-          if data.id do
-            current_business = socket.assigns.business
-
-            current_business
-            |> Ecto.Changeset.change(name: data.business_name)
-            |> Ecto.Changeset.put_assoc(:profile, %{name: data.profile_name})
-            |> Ecto.Changeset.put_assoc(
-              :orders,
-              Enum.map(data.orders, fn order ->
-                %{
-                  id: order.id,
-                  amount: order.amount,
-                  status: order.status
-                }
-              end)
-            )
-            |> IO.inspect()
-            |> FormExample.Repo.update!()
-          else
-            %FormExample.Businesses.Business{
-              name: data.business_name,
-              profile: %FormExample.Profiles.Profile{name: data.profile_name},
-              orders:
-                Enum.map(data.orders, fn order ->
-                  %FormExample.Orders.Order{
-                    amount: order.amount,
-                    status: order.status
-                  }
-                end)
-            }
-            |> FormExample.Repo.insert!()
-          end
-
-        {:noreply, redirect(socket, to: ~p"/#{business.id}")}
-
-      {:error, changeset} ->
+    with {:ok, data} <- HomeForm.validate(form.source.data, params),
+         {:ok, records} <- handle_submit(data, form, params, socket.assigns.live_action) do
+      socket = socket |> put_flash(:info, "Success!") |> push_patch(to: ~p"/#{records.business}")
+      {:noreply, socket}
+    else
+      {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, form: to_form(changeset, as: :form))}
     end
+  end
+
+  defp handle_submit(data, _form, _params, :new) do
+    data |> HomeForm.to_new_data() |> Businesses.register_business()
+  end
+
+  defp handle_submit(_data, form, params, :edit) do
+    changeset = HomeForm.changeset(form.source.data, params)
+    Businesses.update_business(changeset.changes)
+  end
+
+  defp assign_businesses(socket) do
+    assign(socket, :businesses, Businesses.list_businesses())
   end
 end
