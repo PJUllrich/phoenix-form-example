@@ -15,8 +15,6 @@ defmodule FormExample.Orders.Order do
     timestamps(type: :utc_datetime)
   end
 
-  def valid_statutes, do: @valid_statutes
-
   @doc false
   def changeset(order, attrs) do
     order

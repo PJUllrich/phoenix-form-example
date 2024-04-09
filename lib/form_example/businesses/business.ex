@@ -8,8 +8,8 @@ defmodule FormExample.Businesses.Business do
   schema "businesses" do
     field :name, :string
 
-    has_one :profile, Profile
-    has_many :orders, Order
+    has_one :profile, Profile, on_replace: :update
+    has_many :orders, Order, on_replace: :delete
 
     timestamps(type: :utc_datetime)
   end
