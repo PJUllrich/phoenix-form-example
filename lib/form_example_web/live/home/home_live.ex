@@ -74,8 +74,6 @@ defmodule FormExampleWeb.HomeLive do
           </.inputs_for>
         </div>
 
-        <%!-- <.input field={@form[:order_drop]} multiple={true} value={nil} type="hidden" /> --%>
-
         <div class="w-full flex justify-between">
           <.button
             name={@form[:order_sort].name <> "[]"}
